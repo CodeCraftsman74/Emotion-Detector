@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Detector</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="container mx-auto p-8 bg-white rounded-lg shadow-lg">
+        <h1 class="text-4xl font-bold mb-8 text-center text-blue-600">Emotion Detector</h1>
+        
+        <div class="mb-8">
+            <input type="file" id="imageUpload" accept="image/*" class="hidden">
+            <label for="imageUpload" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded cursor-pointer">
+                Upload Image
+            </label>
+        </div>
+        
+        <div id="result" class="hidden">
+            <div class="flex flex-wrap -mx-2">
+                <div class="w-full md:w-1/2 px-2 mb-4">
+                    <img id="resultImage" class="w-full h-auto rounded-lg shadow-md">
+                </div>
+                <div class="w-full md:w-1/2 px-2">
+                    <h2 class="text-2xl font-semibold mb-4">Detected Emotion</h2>
+                    <p id="emotion" class="text-xl mb-2"></p>
+                    <p id="confidence" class="text-lg mb-4"></p>
+                    <canvas id="emotionChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div id="loading" class="hidden text-center">
+            <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="mt-4 text-lg">Processing image...</p>
+        </div>
+        
+        <div id="error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong class="font-bold">Error!</strong>
+            <span id="errorMessage" class="block sm:inline"></span>
+        </div>
+    </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const result = document.getElementById('result');
+        const resultImage = document.getElementById('resultImage');
+        const emotion = document.getElementById('emotion');
+        const confidence = document.getElementById('confidence');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const errorMessage = document.getElementById('errorMessage');
+        let chart;
+
+        imageUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                result.classList.add('hidden');
+                error.classList.add('hidden');
+                loading.classList.remove('hidden');
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fetch('/detect', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loading.classList.add('hidden');
+                    if (data.error) {
+                        showError(data.error);
+                    } else {
+                        showResult(data);
+                    }
+                })
+                .catch(err => {
+                    loading.classList.add('hidden');
+                    showError('An error occurred while processing the image.');
+                });
+            }
+        });
+
+        function showResult(data) {
+            result.classList.remove('hidden');
+            resultImage.src = data.image;
+            emotion.textContent = `Emotion: ${data.emotion}`;
+            confidence.textContent = `Confidence: ${data.confidence.toFixed(2)}%`;
+            updateChart(data.top_3);
+        }
+
+        function showError(message) {
+            error.classList.remove('hidden');
+            errorMessage.textContent = message;
+        }
+
+        function updateChart(top3) {
+            const ctx = document.getElementById('emotionChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: top3.map(item => item.emotion),
+                    datasets: [{
+                        label: 'Emotion Probability',
+                        data: top3.map(item => item.probability * 100),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(54, 162, 235, 0.8)',
+                            'rgba(255, 206, 86, 0.8)',
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
